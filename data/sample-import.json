@@ -1,0 +1,47 @@
+{
+  "source": "manual-sample",
+  "comment": "合成样本：识别结果全部手工给定，不接真实识别服务。低置信度箱保留原图编号与候选批号。",
+  "shiftTable": [
+    { "batchNo": "A01", "shift": "早班", "plannedBoxes": 2 },
+    { "batchNo": "A02", "shift": "早班", "plannedBoxes": 3 },
+    { "batchNo": "B01", "shift": "早班", "plannedBoxes": 1 }
+  ],
+  "labels": [
+    {
+      "imageId": "IMG-001",
+      "candidateBatchNo": "A01",
+      "confidence": 0.97,
+      "note": "高置信度，自动确认"
+    },
+    {
+      "imageId": "IMG-002",
+      "candidateBatchNo": "A01",
+      "confidence": 0.94,
+      "note": "高置信度，自动确认"
+    },
+    {
+      "imageId": "IMG-003",
+      "candidateBatchNo": "A02",
+      "confidence": 0.91,
+      "note": "高置信度，自动确认"
+    },
+    {
+      "imageId": "IMG-004",
+      "candidateBatchNo": "A02",
+      "confidence": 0.62,
+      "note": "标签污损，候选批号正确，人工确认维持 A02"
+    },
+    {
+      "imageId": "IMG-005",
+      "candidateBatchNo": "B01",
+      "confidence": 0.55,
+      "note": "喷码粘连误识，实际批号 A02，人工改号 B01→A02"
+    },
+    {
+      "imageId": "IMG-006",
+      "candidateBatchNo": "B01",
+      "confidence": 0.71,
+      "note": "光照不足，人工确认维持 B01"
+    }
+  ]
+}

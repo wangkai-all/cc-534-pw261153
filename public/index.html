@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>包装线标签识别归集演示</title>
+<style>
+  :root {
+    --border: #d7dce3;
+    --muted: #6b7280;
+    --blue: #1d4ed8;
+    --amber: #b45309;
+    --amber-bg: #fef3c7;
+    --green: #047857;
+    --green-bg: #d1fae5;
+    --red: #b91c1c;
+    --red-bg: #fee2e2;
+    --gray-bg: #f3f4f6;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 14px/1.6 -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: #111827;
+    background: #fafafa;
+  }
+  header { padding: 20px 28px 12px; border-bottom: 1px solid var(--border); background: #fff; }
+  h1 { margin: 0 0 4px; font-size: 20px; }
+  .sub { color: var(--muted); font-size: 13px; }
+  main { padding: 20px 28px 40px; max-width: 1180px; margin: 0 auto; }
+  .toolbar {
+    display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+    padding: 14px 16px; border: 1px solid var(--border); border-radius: 10px; background: #fff;
+  }
+  button {
+    border: 1px solid var(--blue); background: var(--blue); color: #fff;
+    padding: 8px 16px; border-radius: 8px; font-size: 14px; cursor: pointer;
+  }
+  button.secondary { background: #fff; color: var(--blue); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .mode-box { display: flex; gap: 14px; align-items: center; margin-left: auto; }
+  .mode-box label { display: flex; gap: 5px; align-items: center; cursor: pointer; }
+  .banner {
+    margin: 16px 0; padding: 12px 16px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--gray-bg);
+  }
+  .banner.provisional-open { background: var(--amber-bg); border-color: #f59e0b; }
+  .banner.awaiting-confirmation { background: var(--amber-bg); border-color: #f59e0b; }
+  .banner.final-confirmed, .banner.final-reversed { background: var(--green-bg); border-color: #10b981; }
+  .banner strong { display: block; margin-bottom: 2px; }
+  section {
+    margin-top: 20px; border: 1px solid var(--border); border-radius: 10px;
+    background: #fff; padding: 16px 18px;
+  }
+  h2 { margin: 0 0 12px; font-size: 16px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { border: 1px solid var(--border); padding: 7px 9px; text-align: left; }
+  th { background: var(--gray-bg); font-weight: 600; }
+  tr.low-confidence td { background: #fffbeb; }
+  .chip {
+    display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px;
+    white-space: nowrap; border: 1px solid transparent;
+  }
+  .chip.auto-confirmed { background: var(--green-bg); color: var(--green); }
+  .chip.manually-confirmed { background: #dbeafe; color: var(--blue); }
+  .chip.pending-confirmation { background: var(--amber-bg); color: var(--amber); }
+  .chip.matched { background: var(--green-bg); color: var(--green); }
+  .chip.short, .chip.over, .chip.unknown-batch { background: var(--red-bg); color: var(--red); }
+  .chip.provisional { background: var(--amber-bg); color: var(--amber); }
+  .confirm-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .confirm-form select, .confirm-form input {
+    padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px;
+  }
+  .confirm-form button { padding: 5px 12px; font-size: 13px; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .diff-zero { color: var(--green); font-weight: 600; }
+  .diff-bad { color: var(--red); font-weight: 600; }
+  .muted { color: var(--muted); }
+  .log { max-height: 240px; overflow: auto; font-size: 12.5px; }
+  .log li { margin-bottom: 4px; }
+  .log .reversal { color: var(--red); font-weight: 600; }
+  .toast {
+    position: fixed; right: 24px; bottom: 24px; max-width: 420px;
+    background: #111827; color: #fff; padding: 10px 16px; border-radius: 8px;
+    opacity: 0; transform: translateY(8px); transition: all .25s; pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast.error { background: var(--red); }
+  .empty { color: var(--muted); padding: 18px; text-align: center; }
+  .evidence-note { font-size: 12px; color: var(--muted); margin-top: 8px; word-break: break-all; }
+  code { background: var(--gray-bg); padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>包装线：交班次表 × 标签识别结果归集</h1>
+  <div class="sub">
+    本地演示，识别结果均为手工给定的合成样本，不接真实识别服务。低置信度箱保留原图编号与候选批号，人工确认改号时只移动已认领的箱，不重新添箱。
+  </div>
+</header>
+
+<main>
+  <div class="toolbar">
+    <button id="btn-import" data-action="import-sample">导入标签识别样本</button>
+    <button id="btn-aggregate" data-action="aggregate" class="secondary" disabled>对照批号归集</button>
+    <button id="btn-reset" class="secondary">重置</button>
+    <div class="mode-box">
+      <span class="muted">低置信度处理：</span>
+      <label>
+        <input type="radio" name="mode" value="confirm-first" checked />
+        先等确认再入账
+      </label>
+      <label>
+        <input type="radio" name="mode" value="provisional" />
+        先记暂定量再冲正
+      </label>
+    </div>
+  </div>
+
+  <!-- 业务结果区：操作前后均可通过 data-evidence-result 核对内容 -->
+  <div id="result" data-evidence-result="">
+    <div class="banner">
+      <strong>尚未导入数据</strong>
+      <span>点击「导入标签识别样本」载入手工给定的合成识别结果。</span>
+    </div>
+    <div class="empty">业务结果将显示在这里（含每箱状态、批号归集对照、冲正分录与审计事件）。</div>
+  </div>
+</main>
+
+<div id="toast" class="toast" role="status"></div>
+
+<script>
+const $ = (sel) => document.querySelector(sel);
+const resultEl = $('#result');
+const toastEl = $('#toast');
+
+const STATUS_TEXT = {
+  'auto-confirmed': '自动确认已入账',
+  'manually-confirmed': '人工确认已入账',
+  'pending-confirmation': '待人工确认',
+};
+const BATCH_STATUS_TEXT = {
+  matched: '账实相符',
+  short: '实际少于班次表',
+  over: '实际多于班次表',
+  'unknown-batch': '班次表无此批号',
+};
+const MODE_TEXT = {
+  'confirm-first': '先等确认再入账',
+  provisional: '先记暂定量再冲正',
+};
+
+function currentMode() {
+  return document.querySelector('input[name="mode"]:checked').value;
+}
+
+function toast(message, isError = false) {
+  toastEl.textContent = message;
+  toastEl.className = 'toast show' + (isError ? ' error' : '');
+  setTimeout(() => { toastEl.className = 'toast'; }, 3200);
+}
+
+function esc(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
+}
+
+async function api(pathname, options = {}) {
+  const res = await fetch(pathname, {
+    method: options.method || 'GET',
+    headers: { 'content-type': 'application/json' },
+    body: options.body ? JSON.stringify(options.body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `请求失败（${res.status}）`);
+  return data;
+}
+
+async function importSample() {
+  const sample = await api('/api/sample');
+  const data = await api('/api/import', {
+    method: 'POST',
+    body: { ...sample, mode: currentMode() },
+  });
+  $('#btn-aggregate').disabled = false;
+  toast(data.message);
+  render(data.report);
+}
+
+async function confirmOne(imageId, correctedBatchNo) {
+  const data = await api('/api/confirm', {
+    method: 'POST',
+    body: { imageId, correctedBatchNo, mode: currentMode() },
+  });
+  toast(data.message);
+  render(data.report);
+}
+
+async function runAggregate() {
+  const data = await api('/api/aggregate', {
+    method: 'POST',
+    body: { mode: currentMode() },
+  });
+  toast('已按当前模式重新对照批号归集');
+  render(data.report);
+}
+
+async function resetAll() {
+  await api('/api/reset', { method: 'POST' });
+  $('#btn-aggregate').disabled = true;
+  resultEl.setAttribute('data-evidence-result', '');
+  resultEl.innerHTML = `
+    <div class="banner"><strong>尚未导入数据</strong>
+      <span>点击「导入标签识别样本」载入手工给定的合成识别结果。</span></div>
+    <div class="empty">业务结果将显示在这里。</div>`;
+  toast('已重置');
+}
+
+function diffClass(diff) {
+  return diff === 0 ? 'diff-zero' : 'diff-bad';
+}
+
+function renderLabels(report) {
+  const provisional = report.mode === 'provisional';
+  const rows = report.evidence.labels.map((l) => {
+    const low = l.status === 'pending-confirmation';
+    const provisionalChip = low && provisional
+      ? '<span class="chip provisional">暂定量入账</span>' : '';
+    const action = low
+      ? `<div class="confirm-form">
+           <select data-role="batch-select" data-image="${esc(l.imageId)}">
+             ${report.batches.map((b) =>
+               `<option value="${esc(b.batchNo)}" ${b.batchNo === l.candidateBatchNo ? 'selected' : ''}>${esc(b.batchNo)}</option>`
+             ).join('')}
+           </select>
+           <button data-action="confirm-one" data-image="${esc(l.imageId)}">确认一条改号</button>
+         </div>`
+      : '<span class="muted">—</span>';
+    return `<tr class="${low ? 'low-confidence' : ''}">
+      <td>${esc(l.imageId)}</td>
+      <td>${esc(l.candidateBatchNo)}</td>
+      <td class="num">${l.confidence.toFixed(2)}</td>
+      <td><span class="chip ${esc(l.status)}">${STATUS_TEXT[l.status] || esc(l.status)}</span> ${provisionalChip}</td>
+      <td>${esc(l.confirmedBatchNo ?? '（未入账）')}</td>
+      <td>${action}</td>
+    </tr>`;
+  }).join('');
+
+  return `<section>
+    <h2>逐箱识别结果（共 ${report.evidence.labelCount} 箱，低置信度 ${report.totals.pendingTotal} 箱）</h2>
+    <table>
+      <thead><tr>
+        <th>原图编号</th><th>候选批号</th><th>置信度</th><th>当前状态</th><th>入账批号</th><th>人工操作</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <p class="muted" style="margin-bottom:0">
+      黄色行为置信度低于 0.8 的识别结果；改号确认只移动该原图已认领的 1 箱，箱总数始终保持
+      ${report.totals.labelCount} 不变。
+    </p>
+  </section>`;
+}
+
+function renderAggregate(report) {
+  const rows = report.batches.map((b) => {
+    const dClass = diffClass(b.difference);
+    const provisionalSet = new Set(b.provisionalImageIds || []);
+    const imageCell = b.imageIds.length
+      ? b.imageIds
+          .map((id) => provisionalSet.has(id)
+            ? `${esc(id)}<span class="chip provisional" style="margin-left:4px">暂记</span>`
+            : esc(id))
+          .join('、')
+      : '<span class="muted">无已入账箱</span>';
+    return `<tr>
+      <td>${esc(b.batchNo)}</td>
+      <td>${esc(b.shift)}</td>
+      <td class="num">${b.plannedBoxes}</td>
+      <td class="num">${b.actualBoxes}${b.provisionalBoxes ? `<span class="muted">（含暂记 ${b.provisionalBoxes}）</span>` : ''}</td>
+      <td class="num ${dClass}">${b.difference > 0 ? '+' : ''}${b.difference}</td>
+      <td><span class="chip ${esc(b.status)}">${BATCH_STATUS_TEXT[b.status] || esc(b.status)}</span></td>
+      <td>${imageCell}</td>
+    </tr>`;
+  }).join('');
+
+  return `<section>
+    <h2>对照批号归集</h2>
+    <table>
+      <thead><tr>
+        <th>批号</th><th>班次</th><th>班次表箱数</th><th>实际归集箱数</th>
+        <th>差异</th><th>对照状态</th><th>归集到该批号的原图</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr>
+        <th colspan="2">合计</th>
+        <th class="num">${report.totals.plannedTotal}</th>
+        <th class="num">${report.totals.actualTotal}</th>
+        <th class="num ${diffClass(report.totals.difference)}">${report.totals.difference > 0 ? '+' : ''}${report.totals.difference}</th>
+        <th colspan="2" class="muted">待确认 ${report.totals.pendingTotal} 箱</th>
+      </tr></tfoot>
+    </table>
+  </section>`;
+}
+
+function renderReversals(report) {
+  if (report.mode !== 'provisional') {
+    return `<section><h2>冲正分录</h2>
+      <p class="muted">当前为「先等确认再入账」模式：低置信度箱确认前不入账，改号不产生红冲蓝补分录。</p></section>`;
+  }
+  if (report.reversalEntries.length === 0) {
+    return `<section><h2>冲正分录</h2>
+      <p class="muted">暂定量模式：低置信度箱已按候选批号暂记；发生改号确认后，此处列出红冲（原批号 −1）/蓝补（新批号 +1）分录。</p></section>`;
+  }
+  const rows = report.reversalEntries.map((r) =>
+    `<li class="reversal">[${esc(r.at)}] 原图 ${esc(r.imageId)}：红冲 ${esc(r.fromBatchNo)} −${r.boxes} 箱，蓝补 ${esc(r.toBatchNo)} +${r.boxes} 箱</li>`
+  ).join('');
+  return `<section><h2>冲正分录（红冲蓝补）</h2><ul class="log">${rows}</ul></section>`;
+}
+
+function renderEvents(report) {
+  const events = (report.events || []).slice().reverse();
+  if (events.length === 0) return '';
+  const rows = events.map((e) =>
+    `<li class="${esc(e.type)}">[${esc(e.at)}] ${esc(e.message)}</li>`
+  ).join('');
+  return `<section><h2>审计事件</h2><ul class="log">${rows}</ul></section>`;
+}
+
+function render(report) {
+  // 可核对的稳定快照写入 data-evidence-result（无易变时间戳）
+  resultEl.setAttribute('data-evidence-result', JSON.stringify(report.evidence));
+
+  const pendingNote = report.pendingBoxes.length
+    ? `待确认原图：${report.pendingBoxes.map((p) => esc(p.imageId)).join('、')}（候选批号：` +
+      report.pendingBoxes.map((p) => `${esc(p.imageId)}→${esc(p.candidateBatchNo)}`).join('；') + '）'
+    : '全部箱数已确认入账。';
+
+  resultEl.innerHTML = `
+    <div class="banner ${esc(report.ledgerStatus)}">
+      <strong>当前模式：${MODE_TEXT[report.mode]} ｜ 入账状态：${esc(report.ledgerStatusLabel)}</strong>
+      <span>${pendingNote}</span>
+    </div>
+    ${renderLabels(report)}
+    ${renderAggregate(report)}
+    ${renderReversals(report)}
+    ${renderEvents(report)}
+    <p class="evidence-note">
+      data-evidence-result 快照（操作前后核对用）：<code>${esc(JSON.stringify(report.evidence))}</code>
+    </p>`;
+
+  resultEl.querySelectorAll('button[data-action="confirm-one"]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const imageId = btn.dataset.image;
+      const select = resultEl.querySelector(`select[data-image="${imageId}"]`);
+      confirmOne(imageId, select.value).catch((err) => toast(err.message, true));
+    });
+  });
+}
+
+$('#btn-import').addEventListener('click', () => importSample().catch((err) => toast(err.message, true)));
+$('#btn-aggregate').addEventListener('click', () => runAggregate().catch((err) => toast(err.message, true)));
+$('#btn-reset').addEventListener('click', () => resetAll().catch((err) => toast(err.message, true)));
+document.querySelectorAll('input[name="mode"]').forEach((radio) => {
+  radio.addEventListener('change', async () => {
+    if ($('#btn-aggregate').disabled) return;
+    try { await runAggregate(); } catch (err) { toast(err.message, true); }
+  });
+});
+
+// 页面载入时若服务端已有数据则直接呈现
+api('/api/state').then((data) => {
+  if (data.imported && data.report) {
+    $('#btn-aggregate').disabled = false;
+    render(data.report);
+  }
+}).catch(() => {});
+</script>
+</body>
+</html>

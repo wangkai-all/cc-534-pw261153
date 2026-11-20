@@ -1,0 +1,14 @@
+{
+  "name": "pointwise-delivery",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "包装线交班次表与标签识别结果的本地归集演示（仅 Node.js 内置模块）",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
